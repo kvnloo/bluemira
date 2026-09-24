@@ -1,0 +1,123 @@
+name: Component resolution 4499
+
+on:
+  push:
+    branches: [probe/component-ndiscr-4499-20260924]
+    paths:
+      - .github/probes/prepare_component_ndiscr.py
+      - .github/workflows/component-ndiscr-4499.yml
+      - tests/display/test_component_ndiscr.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: component-ndiscr-4499-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-validation:
+    if: github.repository == 'kvnloo/bluemira'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      MPLBACKEND: Agg
+      BLUEMIRA_GEOMETRY_BACKEND: freecad
+      BASE_COMMIT: 96582c900613fd1aaf3077b52d006ade8c010ce8
+      FIX_BRANCH: fix/component-ndiscr-4499-20260924
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - name: Checkout isolated probe branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Build using the upstream-pinned native environment
+        uses: Fusion-Power-Plant-Framework/fppf-actions/build-action@f94a8de5f658cf65c79e1f143a7a31fb94a05793
+        with:
+          python-version: '3.12'
+          clone-bluemira: 'false'
+          with-artifact: 'false'
+
+      - name: Require the unpatched geometry regression to fail
+        run: |
+          set +e
+          pytest -q tests/display/test_component_ndiscr.py \
+            -k test_parent_resolution_reaches_geometry \
+            --junitxml=baseline-4499.xml 2>&1 | tee baseline-4499.log
+          status=${PIPESTATUS[0]}
+          set -e
+          test "$status" -eq 1
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          cases = ET.parse('baseline-4499.xml').getroot().findall('.//testcase')
+          assert len(cases) == 4, f'Expected four native cases, got {len(cases)}'
+          assert all(case.find('failure') is not None for case in cases)
+          assert all(case.find('error') is None for case in cases)
+          PY
+
+      - name: Apply the source-pinned candidate and format it
+        run: |
+          python .github/probes/prepare_component_ndiscr.py .
+          python -m pip install ruff==0.16.4
+          ruff check --fix bluemira/display/plotter.py tests/display/test_component_ndiscr.py
+          ruff format bluemira/display/plotter.py tests/display/test_component_ndiscr.py
+          ruff check bluemira/display/plotter.py tests/display/test_component_ndiscr.py
+          ruff format --check bluemira/display/plotter.py tests/display/test_component_ndiscr.py
+          git diff --check
+
+      - name: Run the existing plotter suite and native regressions
+        run: |
+          set -o pipefail
+          pytest -q tests/display/test_plotter.py tests/display/test_component_ndiscr.py \
+            --junitxml=candidate-4499.xml 2>&1 | tee candidate-4499.log
+
+      - name: Publish only the validated production and test files
+        run: |
+          set -euo pipefail
+          ref="refs/heads/$FIX_BRANCH"
+          set +e
+          git ls-remote --exit-code --heads origin "$ref"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo 'Implementation branch already exists; refusing to update it.'
+            exit 1
+          fi
+          test "$status" -eq 2
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          index=$(mktemp)
+          rm "$index"
+          trap 'rm -f "$index"' EXIT
+          export GIT_INDEX_FILE="$index"
+          git read-tree "$BASE_COMMIT"
+          git add bluemira/display/plotter.py tests/display/test_component_ndiscr.py
+          tree=$(git write-tree)
+          commit=$(printf '%s\n\n%s\n' \
+            'Fix component plotting resolution inheritance' \
+            'AI-assisted. Native plotter regressions and Ruff checks passed in the fork validation workflow.' \
+            | git commit-tree "$tree" -p "$BASE_COMMIT")
+          git diff "$BASE_COMMIT" "$commit" --check
+          git push origin "$commit:$ref"
+          printf 'Validated implementation: https://github.com/kvnloo/bluemira/tree/%s\n\nCommit: `%s`\n' \
+            "$FIX_BRANCH" "$commit" >> "$GITHUB_STEP_SUMMARY"
+          git diff "$BASE_COMMIT" "$commit" > candidate-4499.patch
+
+      - name: Preserve evidence even when validation fails
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: component-ndiscr-4499-evidence
+          path: |
+            baseline-4499.xml
+            baseline-4499.log
+            candidate-4499.xml
+            candidate-4499.log
+            candidate-4499.patch
+          if-no-files-found: warn
