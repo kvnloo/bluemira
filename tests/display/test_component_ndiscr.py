@@ -43,7 +43,7 @@ class TestComponentNdiscr:
         for child_plotter in renderer._cplotters:
             np.testing.assert_allclose(child_plotter._data, expected)
         assert renderer._cplotters[1].options.face_options["color"] == "green"
-        assert renderer._cplotters[1].options.wire_options["linewidth"] == 2.5
+        assert renderer._cplotters[1].options.wire_options["linewidth"] == pytest.approx(2.5)
         assert first.plot_options.ndiscr == second.plot_options.ndiscr == 100
 
     @pytest.mark.parametrize("ndiscr", [100, 64])
@@ -86,7 +86,9 @@ class TestComponentNdiscr:
             assert [p.options.ndiscr for p in renderer._cplotters] == [ndiscr, ndiscr]
         assert first.plot_options.ndiscr == second.plot_options.ndiscr == 100
 
-    def test_explicit_call_site_resolution_keeps_existing_precedence(self, component_tree):
+    def test_explicit_call_site_resolution_keeps_existing_precedence(
+        self, component_tree
+    ):
         root, _, first, _, _ = component_tree
         root.plot_options.ndiscr = 240
         first.plot_options.ndiscr = 100
