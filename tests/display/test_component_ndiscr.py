@@ -43,7 +43,9 @@ class TestComponentNdiscr:
         for child_plotter in renderer._cplotters:
             np.testing.assert_allclose(child_plotter._data, expected)
         assert renderer._cplotters[1].options.face_options["color"] == "green"
-        assert renderer._cplotters[1].options.wire_options["linewidth"] == pytest.approx(2.5)
+        assert renderer._cplotters[1].options.wire_options["linewidth"] == pytest.approx(
+            2.5
+        )
         assert first.plot_options.ndiscr == second.plot_options.ndiscr == 100
 
     @pytest.mark.parametrize("ndiscr", [100, 64])
