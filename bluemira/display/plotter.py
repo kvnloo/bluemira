@@ -249,11 +249,18 @@ class PlotOptions(Options):
     The options that are available for plotting objects
     """
 
-    __slots__ = ()
+    __slots__ = ("_ndiscr_set",)
 
     def __init__(self, **kwargs):
+        self._ndiscr_set = False
         self._options = DefaultPlotOptions()
         super().__init__(**kwargs)
+
+    def __setattr__(self, attr: str, val: Any):
+        """Remember explicit resolution choices, including the default value."""
+        super().__setattr__(attr, val)
+        if attr == "ndiscr":
+            self._ndiscr_set = True
 
 
 def get_default_options() -> PlotOptions:
@@ -706,7 +713,12 @@ class ComponentPlotter(BasePlotter):
             and not self.options.show_faces
         )
 
-    def _create_plotters(self, comp: Component) -> Iterator[BasePlotter]:
+    def _create_plotters(
+        self, comp: Component, ndiscr: int | None = None
+    ) -> Iterator[BasePlotter]:
+        if comp.plot_options._ndiscr_set:
+            ndiscr = comp.plot_options.ndiscr
+
         if comp.is_leaf and getattr(comp, "shape", None) is not None:
             if comp.plot_options.face_options["color"] in flatten_iterable(
                 BLUE_PALETTE.as_hex()
@@ -717,10 +729,15 @@ class ComponentPlotter(BasePlotter):
                     options = comp.plot_options
             else:
                 options = comp.plot_options
-            yield _get_plotter_class(comp.shape)(options, data=comp.shape)
+            # Keep explicit call-site options' existing precedence.
+            if options is self.options and options._ndiscr_set:
+                ndiscr = options.ndiscr
+            # Apply only the inherited resolution to the plotter's private copy.
+            kwargs = {} if ndiscr is None else {"ndiscr": ndiscr}
+            yield _get_plotter_class(comp.shape)(options, data=comp.shape, **kwargs)
         else:
             for child in comp.children:
-                yield from self._create_plotters(child)
+                yield from self._create_plotters(child, ndiscr)
 
     def _populate_data(self, comp: Component):
         self._cplotters = list(self._create_plotters(comp))
