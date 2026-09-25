@@ -54,7 +54,14 @@ def _sqrt_and_log_arg(
     r_j: float,
     z_k: float,
 ) -> tuple[float, float]:
-    """Calculate the shared square-root and logarithm argument stably."""
+    """
+    Calculate the shared square-root and logarithm argument stably.
+
+    Returns
+    -------
+    :
+        The square-root term and stable logarithm argument.
+    """
     offset = r_j - r_pc * cos_psi
     transverse_sq = (r_pc * sin_psi) ** 2 + z_k**2
     sqrt_term = np.sqrt(offset**2 + transverse_sq)
