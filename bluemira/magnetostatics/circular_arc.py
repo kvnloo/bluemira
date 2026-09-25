@@ -22,6 +22,7 @@ order of 10 µT/MA discrepancy at singular points. MC 2026
 """  # noqa: RUF002, yes I meant micro
 
 import matplotlib.pyplot as plt
+import numba as nb
 import numpy as np
 import numpy.typing as npt
 
@@ -45,6 +46,27 @@ TWO_PI = 2.0 * np.pi
 # Full integrands free of singularities
 
 
+@nb.njit(cache=True)
+def _sqrt_and_log_arg(
+    sin_psi: float,
+    cos_psi: float,
+    r_pc: float,
+    r_j: float,
+    z_k: float,
+) -> tuple[float, float]:
+    """Calculate the shared square-root and logarithm argument stably."""
+    offset = r_j - r_pc * cos_psi
+    transverse_sq = (r_pc * sin_psi) ** 2 + z_k**2
+    sqrt_term = np.sqrt(offset**2 + transverse_sq)
+
+    if offset < 0 and transverse_sq > 0:
+        log_arg = transverse_sq / (sqrt_term - offset)
+    else:
+        log_arg = offset + sqrt_term
+
+    return sqrt_term, log_arg
+
+
 @jit_llc4
 def brc_integrand_full(psi: float, r_pc: float, r_j: float, z_k: float) -> float:
     """
@@ -66,9 +88,9 @@ def brc_integrand_full(psi: float, r_pc: float, r_j: float, z_k: float) -> float
     :
         The result of the integrand at a single point
     """
+    sin_psi = np.sin(psi)
     cos_psi = np.cos(psi)
-    sqrt_term = np.sqrt(r_pc**2 - 2 * r_pc * r_j * cos_psi + r_j**2 + z_k**2)
-    log_arg = r_j - r_pc * cos_psi + sqrt_term
+    sqrt_term, log_arg = _sqrt_and_log_arg(sin_psi, cos_psi, r_pc, r_j, z_k)
     if log_arg <= 0:
         log_arg = LOG_EPS
     return cos_psi * sqrt_term + r_pc * cos_psi**2 * np.log(log_arg)
@@ -94,11 +116,11 @@ def bzc_integrand_full_p1(psi: float, r_pc: float, r_j: float, z_k: float) -> fl
     -------
     The result of the integrand at a single point
     """
+    sin_psi = np.sin(psi)
     cos_psi = np.cos(psi)
-    sqrt_term = np.sqrt(r_pc**2 - 2 * r_pc * r_j * cos_psi + r_j**2 + z_k**2)
+    sqrt_term, log_arg_1 = _sqrt_and_log_arg(sin_psi, cos_psi, r_pc, r_j, z_k)
     term_1 = 0.0
     if z_k != 0:
-        log_arg_1 = r_j - r_pc * cos_psi + sqrt_term
         if log_arg_1 <= 0:
             log_arg_1 = LOG_EPS
 
@@ -170,10 +192,8 @@ def btc_integrand_full(psi: float, r_pc: float, r_j: float, z_k: float) -> float
     """
     sin_psi = np.sin(psi)
     cos_psi = np.cos(psi)
-    sqrt_term = np.sqrt(r_pc**2 - 2 * r_pc * r_j * cos_psi + r_j**2 + z_k**2)
-    return sin_psi * sqrt_term + r_pc * sin_psi * cos_psi * np.log(
-        r_j - r_pc * cos_psi + sqrt_term
-    )
+    sqrt_term, log_arg = _sqrt_and_log_arg(sin_psi, cos_psi, r_pc, r_j, z_k)
+    return sin_psi * sqrt_term + r_pc * sin_psi * cos_psi * np.log(log_arg)
 
 
 # Primitive functions
