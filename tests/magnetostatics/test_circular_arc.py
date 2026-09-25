@@ -13,10 +13,30 @@ from matplotlib import pyplot as plt
 from bluemira.base.constants import EPS
 from bluemira.geometry.coordinates import Coordinates
 from bluemira.magnetostatics.baseclass import SourceGroup
-from bluemira.magnetostatics.circular_arc import CircularArcCurrentSource
+from bluemira.magnetostatics.circular_arc import (
+    CircularArcCurrentSource,
+    _sqrt_and_log_arg,
+)
 from bluemira.magnetostatics.semianalytic_2d import semianalytic_Bx, semianalytic_Bz
 from bluemira.utilities.plot_tools import Plot3D
 from tests.magnetostatics.setup_methods import _plot_verification_test
+
+
+def test_near_singular_log_argument_avoids_cancellation():
+    psi = 1e-9
+    r_pc = 2.0
+    r_j = 1.0
+    z_k = 0.0
+
+    _, log_arg = _sqrt_and_log_arg(
+        np.sin(psi),
+        np.cos(psi),
+        r_pc,
+        r_j,
+        z_k,
+    )
+
+    assert log_arg == pytest.approx(2e-18, rel=1e-15)
 
 
 class TestCircularArcCurrentSource:
