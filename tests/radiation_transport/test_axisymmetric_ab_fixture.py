@@ -14,6 +14,10 @@ from tests.radiation_transport.axisymmetric_ab import (
     legacy_weighted_trace_pairs,
     load_single_null_ab_fixture,
     representative_trace_pairs,
+    trace_endpoint_error,
+    trace_legacy_pair,
+    wall_arclength,
+    wall_point_arclength,
 )
 
 
@@ -81,3 +85,31 @@ def test_ci_representative_trace_subset_covers_each_branch(sn_fixture):
     assert len(selected) == 6
     assert sum(pair.branch == "lfs_lower" for pair in selected) == 3
     assert sum(pair.branch == "hfs_lower" for pair in selected) == 3
+
+
+def test_a0_representative_dm0_traces_converge_to_legacy_wall_hits(sn_fixture):
+    pairs = representative_trace_pairs(
+        legacy_weighted_trace_pairs(sn_fixture.legacy_solver)
+    )
+
+    coarse_errors = []
+    fine_errors = []
+    fine_arc_errors = []
+    for pair in pairs:
+        coarse = trace_legacy_pair(sn_fixture, pair, parallel_step=0.10)
+        fine = trace_legacy_pair(sn_fixture, pair, parallel_step=0.05)
+
+        assert coarse.hit is not None, pair.branch
+        assert fine.hit is not None, pair.branch
+
+        coarse_errors.append(trace_endpoint_error(coarse, pair))
+        fine_errors.append(trace_endpoint_error(fine, pair))
+
+        expected_arc = wall_point_arclength(sn_fixture.first_wall, pair.end_rz)
+        traced_arc = wall_arclength(sn_fixture.first_wall, fine.hit)
+        fine_arc_errors.append(abs(traced_arc - expected_arc))
+
+    # A0 is a geometry/stepping convergence gate, not a pointwise heat-flux test.
+    assert np.mean(fine_errors) <= np.mean(coarse_errors) + 1e-6
+    assert max(fine_errors) < 0.5
+    assert max(fine_arc_errors) < 0.5
