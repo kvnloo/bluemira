@@ -125,7 +125,8 @@ def axisymmetric_surface_hit(
     delta = end_array - start_array
     candidates: list[tuple[float, int]] = []
 
-    for index, (wall_start, wall_end) in enumerate(zip(wall[:-1], wall[1:], strict=True)):
+    wall_segments = zip(wall[:-1], wall[1:], strict=True)
+    for index, (wall_start, wall_end) in enumerate(wall_segments):
         radius_0, z_0 = wall_start
         radius_1, z_1 = wall_end
         delta_radius = radius_1 - radius_0
@@ -220,6 +221,7 @@ def triangle_surface_hit(
     -------
     :
         The nearest hit along the particle step, or None when there is no hit.
+
     Raises
     ------
     ValueError
