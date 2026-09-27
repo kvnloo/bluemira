@@ -56,6 +56,7 @@ class LegacyTracePair:
     branch: str
     start_rz: npt.NDArray[np.float64]
     end_rz: npt.NDArray[np.float64]
+    power: float | None = None
 
 
 def load_single_null_ab_fixture() -> AxisymmetricABFixture:
@@ -128,6 +129,78 @@ def legacy_trace_pairs(solver: ChargedParticleSolver) -> list[LegacyTracePair]:
             )
     return pairs
 
+
+def legacy_weighted_trace_pairs(
+    solver: ChargedParticleSolver,
+) -> list[LegacyTracePair]:
+    """Return legacy lower-target traces with their resolved tube power [MW]."""
+    x_omp, z_omp, *_ = solver._get_arrays(solver.flux_surfaces_ob_down)
+    dx_omp = x_omp - solver.x_sep_omp
+    bp_omp = solver.eq.Bp(x_omp, z_omp)
+    bt_omp = solver.eq.Bt(x_omp)
+    field_omp = np.hypot(bp_omp, bt_omp)
+    q_parallel = solver._q_par(x_omp, dx_omp, field_omp, bp_omp)
+    resolved_power = (
+        2.0
+        * np.pi
+        * q_parallel
+        * bp_omp
+        / field_omp
+        * solver.dx_mp
+        * x_omp
+    )
+
+    pairs = []
+    branch_groups = (
+        (
+            "lfs_lower",
+            solver.flux_surfaces_ob_down,
+            solver.params.f_lfs_lower_target,
+        ),
+        (
+            "hfs_lower",
+            solver.flux_surfaces_ob_up,
+            solver.params.f_hfs_lower_target,
+        ),
+    )
+    for branch, surfaces, fraction in branch_groups:
+        for surface, tube_power in zip(surfaces, resolved_power, strict=True):
+            pairs.append(
+                LegacyTracePair(
+                    branch=branch,
+                    start_rz=np.array([surface.x_start, surface.z_start]),
+                    end_rz=np.array([surface.x_end, surface.z_end]),
+                    power=float(fraction * tube_power),
+                )
+            )
+    return pairs
+
+
+def legacy_midplane_residual_power(solver: ChargedParticleSolver) -> float:
+    """Return the single-null power assigned to the legacy mid-plane workaround."""
+    x_omp, z_omp, *_ = solver._get_arrays(solver.flux_surfaces_ob_down)
+    dx_omp = x_omp - solver.x_sep_omp
+    bp_omp = solver.eq.Bp(x_omp, z_omp)
+    bt_omp = solver.eq.Bt(x_omp)
+    field_omp = np.hypot(bp_omp, bt_omp)
+    q_parallel = solver._q_par(x_omp, dx_omp, field_omp, bp_omp)
+    resolved = 2.0 * np.pi * np.sum(
+        q_parallel * bp_omp / field_omp * solver.dx_mp * x_omp
+    )
+    return float(solver.params.P_sep_particle - resolved)
+
+
+def representative_trace_pairs(
+    pairs: list[LegacyTracePair],
+) -> list[LegacyTracePair]:
+    """Select first/middle/last trace from each branch for the CI-sized A0 gate."""
+    selected = []
+    branches = sorted({pair.branch for pair in pairs})
+    for branch in branches:
+        group = [pair for pair in pairs if pair.branch == branch]
+        indices = sorted({0, len(group) // 2, len(group) - 1})
+        selected.extend(group[index] for index in indices)
+    return selected
 
 def wall_arclength(first_wall: Coordinates, hit: SurfaceHit) -> float:
     """Map an axisymmetric SurfaceHit to poloidal wall arc length."""
