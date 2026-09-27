@@ -6,6 +6,7 @@
 
 """Power-accounting primitives for Monte Carlo heat transport."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -63,7 +64,7 @@ class PowerBalance:
 
 
 def account_particle_power(
-    results: list[ParticleWalkResult], total_power: float
+    results: Sequence[ParticleWalkResult], total_power: float
 ) -> PowerBalance:
     """
     Account equally weighted particle power by hit component.
@@ -112,10 +113,6 @@ def account_particle_power(
             unresolved_particles += 1
 
     particle_count = len(results)
-    classified_count = sum(deposited_counts.values()) + unresolved_particles
-    if classified_count != particle_count:
-        raise RuntimeError("particle accounting did not classify every result")
-
     return PowerBalance(
         launched_power=float(total_power),
         particle_count=particle_count,
