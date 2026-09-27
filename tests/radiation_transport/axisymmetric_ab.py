@@ -7,6 +7,7 @@
 """Shared fixture/helpers for the #4474 axisymmetric A/B benchmark."""
 
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +17,10 @@ from bluemira.base.file import get_bluemira_path
 from bluemira.equilibria.equilibrium import Equilibrium
 from bluemira.geometry.coordinates import Coordinates
 from bluemira.radiation_transport.advective_transport import ChargedParticleSolver
+from bluemira.radiation_transport.particle_transport import (
+    ParticleWalkResult,
+    walk_particle,
+)
 from bluemira.radiation_transport.surface_hits import (
     SurfaceHit,
     axisymmetric_surface_hit,
@@ -56,6 +61,8 @@ class LegacyTracePair:
     branch: str
     start_rz: npt.NDArray[np.float64]
     end_rz: npt.NDArray[np.float64]
+    forward: bool
+    connection_length: float
     power: float | None = None
 
 
@@ -112,6 +119,16 @@ def make_axisymmetric_intersector(first_wall: Coordinates):
     return intersect
 
 
+def _legacy_surface_forward(
+    equilibrium: Equilibrium, surface
+) -> bool:
+    """Return whether the OMP-to-wall legacy orientation follows +B."""
+    dr = float(surface.coords.x[1] - surface.coords.x[0])
+    dz = float(surface.coords.z[1] - surface.coords.z[0])
+    br = float(equilibrium.Bx(surface.x_start, surface.z_start))
+    bz = float(equilibrium.Bz(surface.x_start, surface.z_start))
+    return dr * br + dz * bz >= 0.0
+
 def legacy_trace_pairs(solver: ChargedParticleSolver) -> list[LegacyTracePair]:
     """Return OMP starts and wall endpoints used by the legacy SN solver."""
     pairs = []
@@ -125,6 +142,8 @@ def legacy_trace_pairs(solver: ChargedParticleSolver) -> list[LegacyTracePair]:
                     branch=branch,
                     start_rz=np.array([surface.x_start, surface.z_start]),
                     end_rz=np.array([surface.x_end, surface.z_end]),
+                    forward=_legacy_surface_forward(solver.eq, surface),
+                    connection_length=float(surface.connection_length(solver.eq)),
                 )
             )
     return pairs
@@ -170,6 +189,8 @@ def legacy_weighted_trace_pairs(
                     branch=branch,
                     start_rz=np.array([surface.x_start, surface.z_start]),
                     end_rz=np.array([surface.x_end, surface.z_end]),
+                    forward=_legacy_surface_forward(solver.eq, surface),
+                    connection_length=float(surface.connection_length(solver.eq)),
                     power=float(fraction * tube_power),
                 )
             )
@@ -201,6 +222,69 @@ def representative_trace_pairs(
         indices = sorted({0, len(group) // 2, len(group) - 1})
         selected.extend(group[index] for index in indices)
     return selected
+
+def trace_legacy_pair(
+    fixture: AxisymmetricABFixture,
+    pair: LegacyTracePair,
+    parallel_step: float,
+) -> ParticleWalkResult:
+    """Trace one legacy OMP start through the new Dm=0 transport stack."""
+    magnetic_field = partial(axisymmetric_cartesian_field, fixture.equilibrium)
+    intersector = make_axisymmetric_intersector(fixture.first_wall)
+    start = np.array([pair.start_rz[0], 0.0, pair.start_rz[1]])
+    max_steps = max(
+        1, int(np.ceil(1.5 * pair.connection_length / parallel_step)) + 10
+    )
+    return walk_particle(
+        start,
+        magnetic_field,
+        intersector,
+        parallel_step=parallel_step,
+        diffusion_coefficient=0.0,
+        max_steps=max_steps,
+        seed=0,
+        forward=pair.forward,
+    )
+
+
+def trace_endpoint_error(
+    result: ParticleWalkResult, pair: LegacyTracePair
+) -> float:
+    """Return R-Z distance from a traced hit to the legacy wall endpoint [m]."""
+    if result.hit is None:
+        return np.inf
+    point_rz = np.array([
+        np.hypot(result.hit.point[0], result.hit.point[1]),
+        result.hit.point[2],
+    ])
+    return float(np.linalg.norm(point_rz - pair.end_rz))
+
+
+def wall_point_arclength(first_wall: Coordinates, point_rz: npt.ArrayLike) -> float:
+    """Project an R-Z point to the nearest first-wall segment and return arc length."""
+    wall_rz = np.column_stack((first_wall.x, first_wall.z))
+    segments = np.diff(wall_rz, axis=0)
+    lengths = np.linalg.norm(segments, axis=1)
+    cumulative = np.concatenate(([0.0], np.cumsum(lengths)))
+    point = np.asarray(point_rz, dtype=float)
+
+    best_distance = np.inf
+    best_arclength = 0.0
+    for index, (start, vector, length) in enumerate(
+        zip(wall_rz[:-1], segments, lengths, strict=True)
+    ):
+        if length == 0.0:
+            fraction = 0.0
+            projected = start
+        else:
+            fraction = float(np.dot(point - start, vector) / length**2)
+            fraction = float(np.clip(fraction, 0.0, 1.0))
+            projected = start + fraction * vector
+        distance = float(np.linalg.norm(point - projected))
+        if distance < best_distance:
+            best_distance = distance
+            best_arclength = float(cumulative[index] + fraction * length)
+    return best_arclength
 
 def wall_arclength(first_wall: Coordinates, hit: SurfaceHit) -> float:
     """Map an axisymmetric SurfaceHit to poloidal wall arc length."""
