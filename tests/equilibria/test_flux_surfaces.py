@@ -22,6 +22,7 @@ from bluemira.equilibria.find_legs import (
 )
 from bluemira.equilibria.flux_surfaces import (
     ClosedFluxSurface,
+    FieldLineTerminationReason,
     FieldLineTracer,
     OpenFluxSurface,
     PartialOpenFluxSurface,
@@ -346,6 +347,38 @@ class TestFieldLine:
         assert np.isclose(
             self.field_line.connection_length, self.field_line.coords.length, rtol=5e-2
         )
+
+    def test_collision_termination_receipt(self):
+        termination = self.field_line.termination
+
+        assert termination is not None
+        assert termination.reason is FieldLineTerminationReason.COLLISION
+        assert termination.surface_id == "first_wall"
+        assert np.isclose(
+            termination.connection_length, self.field_line.connection_length
+        )
+        np.testing.assert_allclose(
+            termination.point,
+            self.field_line.coords.xyz.T[-1],
+        )
+
+    def test_turn_limit_termination_receipt(self):
+        boundary = Coordinates({
+            "x": [0.1, 100, 100, 0.1, 0.1],
+            "y": 0,
+            "z": [-100, -100, 100, 100, -100],
+        })
+        field_line = FieldLineTracer(self.eq, boundary).trace_field_line(
+            13, 0, n_points=100, n_turns_max=1
+        )
+        termination = field_line.termination
+
+        assert termination is not None
+        assert termination.reason is FieldLineTerminationReason.TURN_LIMIT
+        assert termination.surface_id is None
+        assert np.isclose(termination.toroidal_angle, 2 * np.pi)
+        assert np.isclose(termination.connection_length, field_line.connection_length)
+        np.testing.assert_allclose(termination.point, field_line.coords.xyz.T[-1])
 
     def test_connection_length_coordinates_grid(self):
         """
