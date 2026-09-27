@@ -6,8 +6,6 @@
 
 """Surface-hit primitives for particle transport."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -105,6 +103,11 @@ def axisymmetric_surface_hit(
     :
         The nearest hit along the particle step, or None when there is no hit.
 
+    Raises
+    ------
+    ValueError
+        If the segment or wall arrays do not have the required shape.
+
     Notes
     -----
     A particle segment lying entirely in the plane of a horizontal annulus is
@@ -122,7 +125,7 @@ def axisymmetric_surface_hit(
     delta = end_array - start_array
     candidates: list[tuple[float, int]] = []
 
-    for index, (wall_start, wall_end) in enumerate(zip(wall[:-1], wall[1:])):
+    for index, (wall_start, wall_end) in enumerate(zip(wall[:-1], wall[1:], strict=True)):
         radius_0, z_0 = wall_start
         radius_1, z_1 = wall_end
         delta_radius = radius_1 - radius_0
@@ -217,6 +220,10 @@ def triangle_surface_hit(
     -------
     :
         The nearest hit along the particle step, or None when there is no hit.
+    Raises
+    ------
+    ValueError
+        If the segment, vertex, or triangle arrays do not have the required shape.
     """
     start_array = np.asarray(start, dtype=float)
     end_array = np.asarray(end, dtype=float)
