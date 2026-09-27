@@ -251,7 +251,10 @@ def triangle_surface_hit(
         raise ValueError("start and end must be 3-vectors")
     if vertex_array.ndim != _RZ_DIMENSIONS or vertex_array.shape[1] != _XYZ_DIMENSIONS:
         raise ValueError("vertices must have shape (n, 3)")
-    if triangle_array.ndim != _RZ_DIMENSIONS or triangle_array.shape[1] != _XYZ_DIMENSIONS:
+    if (
+        triangle_array.ndim != _RZ_DIMENSIONS
+        or triangle_array.shape[1] != _XYZ_DIMENSIONS
+    ):
         raise ValueError("triangles must have shape (m, 3)")
     _validate_component_ids(component_ids, len(triangle_array))
 
