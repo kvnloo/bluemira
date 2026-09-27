@@ -411,6 +411,18 @@ class TestFieldLine:
         field_line = flt.trace_field_line(12.5, 0, n_points=1000, forward=False)
         self._check_endpoint(field_line, coords)
 
+    def test_integration_failure_termination_reason(self):
+        result = {
+            "y_events": [np.empty((0, 3))],
+            "y": np.array([[13.0, 13.1], [0.0, 0.1], [0.0, 0.5]]),
+            "t": np.array([0.0, 0.1]),
+            "success": False,
+        }
+
+        *_, reason = FieldLineTracer._process_result(result)
+
+        assert reason is FieldLineTerminationReason.INTEGRATION_FAILURE
+
     def _check_endpoint(self, field_line, coords, tol=1e-8):
         """
         Check that the end point of a field line lies near enough to the boundary
