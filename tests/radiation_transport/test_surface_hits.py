@@ -54,13 +54,11 @@ def test_axisymmetric_horizontal_segment_is_an_annulus():
 
 
 def test_triangle_hit_uses_same_contract_as_axisymmetric_hit():
-    vertices = np.array(
-        [
-            [2.0, -1.0, -1.0],
-            [2.0, 1.0, -1.0],
-            [2.0, 0.0, 1.0],
-        ]
-    )
+    vertices = np.array([
+        [2.0, -1.0, -1.0],
+        [2.0, 1.0, -1.0],
+        [2.0, 0.0, 1.0],
+    ])
     hit = triangle_surface_hit(
         [1.0, 0.0, 0.0],
         [3.0, 0.0, 0.0],
@@ -78,16 +76,14 @@ def test_triangle_hit_uses_same_contract_as_axisymmetric_hit():
 
 
 def test_triangle_hit_selects_nearest_surface():
-    vertices = np.array(
-        [
-            [2.5, -1.0, -1.0],
-            [2.5, 1.0, -1.0],
-            [2.5, 0.0, 1.0],
-            [2.0, -1.0, -1.0],
-            [2.0, 1.0, -1.0],
-            [2.0, 0.0, 1.0],
-        ]
-    )
+    vertices = np.array([
+        [2.5, -1.0, -1.0],
+        [2.5, 1.0, -1.0],
+        [2.5, 0.0, 1.0],
+        [2.0, -1.0, -1.0],
+        [2.0, 1.0, -1.0],
+        [2.0, 0.0, 1.0],
+    ])
     hit = triangle_surface_hit(
         [1.0, 0.0, 0.0],
         [3.0, 0.0, 0.0],
