@@ -17,6 +17,9 @@ import numpy.typing as npt
 
 from bluemira.geometry.constants import D_TOLERANCE
 
+_ARRAY_DIMENSIONS = 2
+_XYZ_DIMENSIONS = 3
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -81,7 +84,10 @@ def _segment_triangle_distance(
     barycentric_u = float(np.dot(t_vec, p_vec) * inverse_determinant)
 
     barycentric_tolerance = 64 * np.finfo(float).eps
-    if barycentric_u < -barycentric_tolerance or barycentric_u > 1 + barycentric_tolerance:
+    if (
+        barycentric_u < -barycentric_tolerance
+        or barycentric_u > 1 + barycentric_tolerance
+    ):
         return None
 
     q_vec = np.cross(t_vec, edge_1)
@@ -126,6 +132,11 @@ def first_surface_hit(
     :
         Nearest hit, or an explicit no-hit result.
 
+    Raises
+    ------
+    ValueError
+        If point, mesh, or surface-id array shapes are inconsistent.
+
     Notes
     -----
     Equal-distance hits within the geometry distance tolerance are resolved by the
@@ -139,9 +150,15 @@ def first_surface_hit(
 
     if start_array.shape != (3,) or end_array.shape != (3,):
         raise ValueError("start and end must each have shape (3,)")
-    if vertex_array.ndim != 2 or vertex_array.shape[1] != 3:
+    if (
+        vertex_array.ndim != _ARRAY_DIMENSIONS
+        or vertex_array.shape[1] != _XYZ_DIMENSIONS
+    ):
         raise ValueError("vertices must have shape (N, 3)")
-    if triangle_array.ndim != 2 or triangle_array.shape[1] != 3:
+    if (
+        triangle_array.ndim != _ARRAY_DIMENSIONS
+        or triangle_array.shape[1] != _XYZ_DIMENSIONS
+    ):
         raise ValueError("triangles must have shape (M, 3)")
     if surface_ids is not None and len(surface_ids) != len(triangle_array):
         raise ValueError("surface_ids must contain one identity per triangle")
@@ -164,9 +181,12 @@ def first_surface_hit(
         if distance is None:
             continue
 
-        if best_hit is not None and best_hit.distance is not None:
-            if distance >= best_hit.distance - D_TOLERANCE:
-                continue
+        if (
+            best_hit is not None
+            and best_hit.distance is not None
+            and distance >= best_hit.distance - D_TOLERANCE
+        ):
+            continue
 
         point = start_array + distance * direction
         best_hit = SurfaceHitResult(
