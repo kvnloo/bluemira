@@ -14,11 +14,11 @@ from operator import itemgetter
 import numpy as np
 import numpy.typing as npt
 
-
 ComponentId = str | int | None
 
 _RZ_DIMENSIONS = 2
 _XYZ_DIMENSIONS = 3
+_XYZ_VECTOR_SHAPE = (_XYZ_DIMENSIONS,)
 
 
 @dataclass(frozen=True)
@@ -127,7 +127,7 @@ def axisymmetric_surface_hit(
     end_array = np.asarray(end, dtype=float)
     wall = np.asarray(wall_rz, dtype=float)
 
-    if start_array.shape != (3,) or end_array.shape != (3,):
+    if start_array.shape != _XYZ_VECTOR_SHAPE or end_array.shape != _XYZ_VECTOR_SHAPE:
         raise ValueError("start and end must be 3-vectors")
     if (
         wall.ndim != _RZ_DIMENSIONS
@@ -276,10 +276,7 @@ def triangle_surface_hit(
 
         q_vector = np.cross(t_vector, edge_1)
         barycentric_v = float(np.dot(direction, q_vector) * inverse_determinant)
-        if (
-            barycentric_v < -tolerance
-            or barycentric_u + barycentric_v > 1.0 + tolerance
-        ):
+        if barycentric_v < -tolerance or barycentric_u + barycentric_v > 1.0 + tolerance:
             continue
 
         fraction = float(np.dot(edge_2, q_vector) * inverse_determinant)
@@ -289,7 +286,7 @@ def triangle_surface_hit(
     if not candidates:
         return None
 
-    fraction, surface_index = min(candidates, key=lambda candidate: candidate[0])
+    fraction, surface_index = min(candidates, key=itemgetter(0))
     return _surface_hit(
         start_array,
         end_array,
