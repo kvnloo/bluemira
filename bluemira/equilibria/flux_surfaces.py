@@ -655,6 +655,7 @@ class FieldLineTerminationReason(StrEnum):
 
     COLLISION = "collision"
     TURN_LIMIT = "turn_limit"
+    INTEGRATION_FAILURE = "integration_failure"
 
 
 @dataclass(frozen=True)
@@ -901,11 +902,14 @@ class FieldLineTracer:
             reason = FieldLineTerminationReason.COLLISION
 
         else:
-            # Field line tracing reached the configured turn limit
             r, z, length = result["y"][0], result["y"][1], result["y"][2]
             phi = result["t"]
             connection_length = length[-1]
-            reason = FieldLineTerminationReason.TURN_LIMIT
+            reason = (
+                FieldLineTerminationReason.TURN_LIMIT
+                if result["success"]
+                else FieldLineTerminationReason.INTEGRATION_FAILURE
+            )
         return r, z, phi, connection_length, reason
 
 
