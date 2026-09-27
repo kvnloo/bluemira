@@ -27,13 +27,18 @@ class SurfaceHit:
     component_id: ComponentId = None
 
 
+def _validate_component_ids(
+    component_ids: Sequence[ComponentId] | None, surface_count: int
+) -> None:
+    if component_ids is not None and len(component_ids) != surface_count:
+        raise ValueError("component_ids must match the number of candidate surfaces")
+
+
 def _component_id(
     component_ids: Sequence[ComponentId] | None, surface_index: int
 ) -> ComponentId:
     if component_ids is None:
         return None
-    if len(component_ids) <= surface_index:
-        raise ValueError("component_ids must cover every candidate surface")
     return component_ids[surface_index]
 
 
@@ -106,7 +111,7 @@ def axisymmetric_surface_hit(
     Raises
     ------
     ValueError
-        If the segment or wall arrays do not have the required shape.
+        If the geometry shape is invalid or component_ids does not match the wall.
 
     Notes
     -----
@@ -121,6 +126,7 @@ def axisymmetric_surface_hit(
         raise ValueError("start and end must be 3-vectors")
     if wall.ndim != 2 or wall.shape[1] != 2 or len(wall) < 2:
         raise ValueError("wall_rz must have shape (n, 2) with n >= 2")
+    _validate_component_ids(component_ids, len(wall) - 1)
 
     delta = end_array - start_array
     candidates: list[tuple[float, int]] = []
@@ -225,7 +231,7 @@ def triangle_surface_hit(
     Raises
     ------
     ValueError
-        If the segment, vertex, or triangle arrays do not have the required shape.
+        If the geometry shape is invalid or component_ids does not match the mesh.
     """
     start_array = np.asarray(start, dtype=float)
     end_array = np.asarray(end, dtype=float)
@@ -238,6 +244,7 @@ def triangle_surface_hit(
         raise ValueError("vertices must have shape (n, 3)")
     if triangle_array.ndim != 2 or triangle_array.shape[1] != 3:
         raise ValueError("triangles must have shape (m, 3)")
+    _validate_component_ids(component_ids, len(triangle_array))
 
     direction = end_array - start_array
     candidates: list[tuple[float, int]] = []
