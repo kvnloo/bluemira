@@ -8,12 +8,17 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import pairwise
+from operator import itemgetter
 
 import numpy as np
 import numpy.typing as npt
 
 
 ComponentId = str | int | None
+
+_RZ_DIMENSIONS = 2
+_XYZ_DIMENSIONS = 3
 
 
 @dataclass(frozen=True)
@@ -124,14 +129,18 @@ def axisymmetric_surface_hit(
 
     if start_array.shape != (3,) or end_array.shape != (3,):
         raise ValueError("start and end must be 3-vectors")
-    if wall.ndim != 2 or wall.shape[1] != 2 or len(wall) < 2:
+    if (
+        wall.ndim != _RZ_DIMENSIONS
+        or wall.shape[1] != _RZ_DIMENSIONS
+        or len(wall) < _RZ_DIMENSIONS
+    ):
         raise ValueError("wall_rz must have shape (n, 2) with n >= 2")
     _validate_component_ids(component_ids, len(wall) - 1)
 
     delta = end_array - start_array
     candidates: list[tuple[float, int]] = []
 
-    wall_segments = zip(wall[:-1], wall[1:], strict=True)
+    wall_segments = pairwise(wall)
     for index, (wall_start, wall_end) in enumerate(wall_segments):
         radius_0, z_0 = wall_start
         radius_1, z_1 = wall_end
@@ -165,11 +174,11 @@ def axisymmetric_surface_hit(
         )
         qc = start_array[0] ** 2 + start_array[1] ** 2 - target_radius_0**2
 
-        for fraction in _quadratic_roots(qa, qb, qc, tolerance):
-            if not -tolerance <= fraction <= 1.0 + tolerance:
+        for root_fraction in _quadratic_roots(qa, qb, qc, tolerance):
+            if not -tolerance <= root_fraction <= 1.0 + tolerance:
                 continue
 
-            fraction = float(np.clip(fraction, 0.0, 1.0))
+            fraction = float(np.clip(root_fraction, 0.0, 1.0))
             z_value = start_array[2] + fraction * delta[2]
             wall_fraction = (z_value - z_0) / delta_z_wall
             if not -tolerance <= wall_fraction <= 1.0 + tolerance:
@@ -183,7 +192,7 @@ def axisymmetric_surface_hit(
     if not candidates:
         return None
 
-    fraction, surface_index = min(candidates, key=lambda candidate: candidate[0])
+    fraction, surface_index = min(candidates, key=itemgetter(0))
     return _surface_hit(
         start_array,
         end_array,
@@ -240,9 +249,9 @@ def triangle_surface_hit(
 
     if start_array.shape != (3,) or end_array.shape != (3,):
         raise ValueError("start and end must be 3-vectors")
-    if vertex_array.ndim != 2 or vertex_array.shape[1] != 3:
+    if vertex_array.ndim != _RZ_DIMENSIONS or vertex_array.shape[1] != _XYZ_DIMENSIONS:
         raise ValueError("vertices must have shape (n, 3)")
-    if triangle_array.ndim != 2 or triangle_array.shape[1] != 3:
+    if triangle_array.ndim != _RZ_DIMENSIONS or triangle_array.shape[1] != _XYZ_DIMENSIONS:
         raise ValueError("triangles must have shape (m, 3)")
     _validate_component_ids(component_ids, len(triangle_array))
 
