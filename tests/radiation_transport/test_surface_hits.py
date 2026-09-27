@@ -129,7 +129,9 @@ def test_surface_hit_returns_none_for_miss(function, args):
 
 
 def test_component_ids_must_cover_candidate_surface():
-    with pytest.raises(ValueError, match="component_ids must cover every candidate surface"):
+    with pytest.raises(
+        ValueError, match="component_ids must cover every candidate surface"
+    ):
         triangle_surface_hit(
             [1.0, 0.0, 0.0],
             [3.0, 0.0, 0.0],
