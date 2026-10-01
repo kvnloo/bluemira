@@ -11,6 +11,7 @@ Flux surface utility classes and calculations
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from enum import StrEnum
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
@@ -649,6 +650,25 @@ def analyse_plasma_core(eq: Equilibrium, n_points: int = 50) -> CoreResults:
     )
 
 
+class FieldLineTerminationReason(StrEnum):
+    """Reason a field-line integration stopped."""
+
+    COLLISION = "collision"
+    TURN_LIMIT = "turn_limit"
+    INTEGRATION_FAILURE = "integration_failure"
+
+
+@dataclass(frozen=True)
+class FieldLineTermination:
+    """Machine-readable receipt for the end of a field-line integration."""
+
+    reason: FieldLineTerminationReason
+    point: tuple[float, float, float]
+    connection_length: float
+    toroidal_angle: float
+    surface_id: str | None = None
+
+
 class FieldLine:
     """
     Field line object.
@@ -659,11 +679,19 @@ class FieldLine:
         Geometry of the FieldLine
     connection_length:
         Connection length of the FieldLine
+    termination:
+        Optional receipt describing why and where tracing stopped.
     """
 
-    def __init__(self, coords: Coordinates, connection_length: float):
+    def __init__(
+        self,
+        coords: Coordinates,
+        connection_length: float,
+        termination: FieldLineTermination | None = None,
+    ):
         self.coords = coords
         self.connection_length = connection_length
+        self.termination = termination
 
     def plot(self, ax: plt.Axes | None = None, **kwargs):
         """
@@ -824,12 +852,23 @@ class FieldLineTracer:
             method="LSODA",
             args=(forward,),
         )
-        r, z, phi, connection_length = self._process_result(result)
+        r, z, phi, connection_length, reason = self._process_result(result)
 
         x = r * np.cos(phi)
         y = r * np.sin(phi)
         coords = Coordinates({"x": x, "y": y, "z": z})
-        return FieldLine(coords, connection_length)
+        termination = FieldLineTermination(
+            reason=reason,
+            point=(float(x[-1]), float(y[-1]), float(z[-1])),
+            connection_length=float(connection_length),
+            toroidal_angle=float(phi[-1]),
+            surface_id=(
+                "first_wall"
+                if reason is FieldLineTerminationReason.COLLISION
+                else None
+            ),
+        )
+        return FieldLine(coords, connection_length, termination)
 
     def _dxzl_dphi(self, _phi, xz, forward):
         """
@@ -860,13 +899,18 @@ class FieldLineTracer:
             z = np.append(z, termination[1])
             connection_length = termination[2]
             phi = np.append(phi, result["t_events"][0][0])
+            reason = FieldLineTerminationReason.COLLISION
 
         else:
-            # Field line tracing was not terminated by a collision
             r, z, length = result["y"][0], result["y"][1], result["y"][2]
             phi = result["t"]
             connection_length = length[-1]
-        return r, z, phi, connection_length
+            reason = (
+                FieldLineTerminationReason.TURN_LIMIT
+                if result["success"]
+                else FieldLineTerminationReason.INTEGRATION_FAILURE
+            )
+        return r, z, phi, connection_length, reason
 
 
 def calculate_connection_length_flt(

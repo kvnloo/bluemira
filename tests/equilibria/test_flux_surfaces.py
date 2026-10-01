@@ -22,6 +22,7 @@ from bluemira.equilibria.find_legs import (
 )
 from bluemira.equilibria.flux_surfaces import (
     ClosedFluxSurface,
+    FieldLineTerminationReason,
     FieldLineTracer,
     OpenFluxSurface,
     PartialOpenFluxSurface,
@@ -347,6 +348,38 @@ class TestFieldLine:
             self.field_line.connection_length, self.field_line.coords.length, rtol=5e-2
         )
 
+    def test_collision_termination_receipt(self):
+        termination = self.field_line.termination
+
+        assert termination is not None
+        assert termination.reason is FieldLineTerminationReason.COLLISION
+        assert termination.surface_id == "first_wall"
+        assert np.isclose(
+            termination.connection_length, self.field_line.connection_length
+        )
+        np.testing.assert_allclose(
+            termination.point,
+            self.field_line.coords.xyz.T[-1],
+        )
+
+    def test_turn_limit_termination_receipt(self):
+        boundary = Coordinates({
+            "x": [0.1, 100, 100, 0.1, 0.1],
+            "y": 0,
+            "z": [-100, -100, 100, 100, -100],
+        })
+        field_line = FieldLineTracer(self.eq, boundary).trace_field_line(
+            13, 0, n_points=100, n_turns_max=1
+        )
+        termination = field_line.termination
+
+        assert termination is not None
+        assert termination.reason is FieldLineTerminationReason.TURN_LIMIT
+        assert termination.surface_id is None
+        assert np.isclose(termination.toroidal_angle, 2 * np.pi)
+        assert np.isclose(termination.connection_length, field_line.connection_length)
+        np.testing.assert_allclose(termination.point, field_line.coords.xyz.T[-1])
+
     def test_connection_length_coordinates_grid(self):
         """
         Check to see behaviour is the same with Coordinates and Grid
@@ -377,6 +410,18 @@ class TestFieldLine:
         flt = FieldLineTracer(self.eq, coords)
         field_line = flt.trace_field_line(12.5, 0, n_points=1000, forward=False)
         self._check_endpoint(field_line, coords)
+
+    def test_integration_failure_termination_reason(self):
+        result = {
+            "y_events": [np.empty((0, 3))],
+            "y": np.array([[13.0, 13.1], [0.0, 0.1], [0.0, 0.5]]),
+            "t": np.array([0.0, 0.1]),
+            "success": False,
+        }
+
+        *_, reason = FieldLineTracer._process_result(result)
+
+        assert reason is FieldLineTerminationReason.INTEGRATION_FAILURE
 
     def _check_endpoint(self, field_line, coords, tol=1e-8):
         """
