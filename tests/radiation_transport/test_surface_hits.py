@@ -167,3 +167,38 @@ def test_triangle_outside_ray_remains_a_miss_under_uniform_scale(scale):
     end = scale * np.array([0.08, 0.08, 0.05])
 
     assert triangle_surface_hit(start, end, vertices, [[0, 1, 2]]) is None
+
+
+@pytest.mark.parametrize("panels", [16, 32, 64, 128])
+@pytest.mark.parametrize("scale", [1.0, 0.0001])
+def test_triangle_cylinder_facets_converge_to_axisymmetric_hit(panels, scale):
+    # An inscribed polygon converges to a circular cylinder as panels increase.
+    angles = 2.0 * np.pi * np.arange(panels) / panels
+    vertices = []
+    triangles = []
+    for angle in angles:
+        x, y = 2.0 * scale * np.cos(angle), 2.0 * scale * np.sin(angle)
+        vertices.extend([[x, y, -scale], [x, y, scale]])
+    for panel in range(panels):
+        left = 2 * panel
+        right = 2 * ((panel + 1) % panels)
+        triangles.extend([[left, right, left + 1], [right, right + 1, left + 1]])
+
+    midpoint = np.pi / panels
+    direction = np.array([np.cos(midpoint), np.sin(midpoint), 0.0])
+    offset = np.array([0.0, 0.0, -0.2 * scale])
+    start, end = scale * direction + offset, 3.0 * scale * direction + offset
+    axis_hit = axisymmetric_surface_hit(
+        start, end, [[2.0 * scale, -scale], [2.0 * scale, scale]]
+    )
+    mesh_hit = triangle_surface_hit(start, end, vertices, triangles)
+
+    assert axis_hit is not None
+    assert mesh_hit is not None
+    assert axis_hit.step_fraction == pytest.approx(0.5)
+    assert mesh_hit.step_fraction == pytest.approx(
+        np.cos(np.pi / panels) - 0.5, abs=1e-12
+    )
+    assert axis_hit.step_fraction - mesh_hit.step_fraction == pytest.approx(
+        1.0 - np.cos(np.pi / panels), abs=1e-12
+    )
