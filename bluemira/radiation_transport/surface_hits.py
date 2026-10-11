@@ -259,6 +259,7 @@ def triangle_surface_hit(
     _validate_component_ids(component_ids, len(triangle_array))
 
     direction = end_array - start_array
+    direction_length = float(np.linalg.norm(direction))
     candidates: list[tuple[float, int]] = []
 
     for index, triangle in enumerate(triangle_array):
@@ -268,7 +269,10 @@ def triangle_surface_hit(
 
         p_vector = np.cross(direction, edge_2)
         determinant = float(np.dot(edge_1, p_vector))
-        if abs(determinant) <= tolerance:
+        determinant_scale = (
+            direction_length * np.linalg.norm(edge_1) * np.linalg.norm(edge_2)
+        )
+        if determinant_scale == 0.0 or abs(determinant) <= tolerance * determinant_scale:
             continue
 
         inverse_determinant = 1.0 / determinant
