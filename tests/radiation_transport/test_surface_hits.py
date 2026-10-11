@@ -139,3 +139,31 @@ def test_component_ids_must_cover_candidate_surface():
             [[0, 1, 2]],
             component_ids=[],
         )
+
+
+@pytest.mark.parametrize("scale", [1.0, 0.1, 0.01, 0.001, 0.0001])
+def test_triangle_hit_is_invariant_under_uniform_scale(scale):
+    vertices = scale * np.array(
+        [[0.0, 0.0, 0.0], [0.1, 0.0, 0.0], [0.0, 0.1, 0.0]]
+    )
+    start = scale * np.array([0.02, 0.02, -0.05])
+    end = scale * np.array([0.02, 0.02, 0.05])
+
+    hit = triangle_surface_hit(start, end, vertices, [[0, 1, 2]])
+
+    assert hit is not None
+    assert hit.step_fraction == pytest.approx(0.5)
+    np.testing.assert_allclose(
+        hit.point, scale * np.array([0.02, 0.02, 0.0]), rtol=1e-12, atol=1e-15
+    )
+
+
+@pytest.mark.parametrize("scale", [1.0, 0.1, 0.01, 0.001, 0.0001])
+def test_triangle_outside_ray_remains_a_miss_under_uniform_scale(scale):
+    vertices = scale * np.array(
+        [[0.0, 0.0, 0.0], [0.1, 0.0, 0.0], [0.0, 0.1, 0.0]]
+    )
+    start = scale * np.array([0.08, 0.08, -0.05])
+    end = scale * np.array([0.08, 0.08, 0.05])
+
+    assert triangle_surface_hit(start, end, vertices, [[0, 1, 2]]) is None
