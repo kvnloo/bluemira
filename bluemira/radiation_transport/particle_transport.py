@@ -149,6 +149,9 @@ def walk_particle(
     Substepping reduces each integration chord and checks the wall along every
     segment. Even short chords are not the exact curved field line; near-wall
     hits still require convergence tests or separate physical validation.
+    The returned positions include all successful substeps; iterations counts
+    completed or attempted full parallel steps. Diffusion is sampled once per
+    full parallel step, not once per substep.
 
     The random generator is local to this call. Identical inputs and seed
     therefore replay the same diffusive trajectory without consuming global
