@@ -103,8 +103,8 @@ def walk_particle(
     """
     Walk one particle along a magnetic field with perpendicular diffusion.
 
-    Each iteration advances by ``parallel_step`` along the local magnetic
-    field, then by ``sqrt(diffusion_coefficient * parallel_step)`` in a
+    Each iteration uses an explicit midpoint step of ``parallel_step`` along
+    the normalised local magnetic field, then by ``sqrt(diffusion_coefficient * parallel_step)`` in a
     uniformly sampled direction in the plane perpendicular to the field.
     Both finite segments are checked independently for the nearest surface hit.
 
@@ -141,6 +141,10 @@ def walk_particle(
 
     Notes
     -----
+    Surface intersections are still checked against the straight chord joining
+    consecutive numerical points, not the exact curved field line. Step-size
+    convergence of near-surface hits must be established separately.
+
     The random generator is local to this call. Identical inputs and seed
     therefore replay the same diffusive trajectory without consuming global
     random state.
@@ -172,7 +176,16 @@ def walk_particle(
                 iterations=iterations,
             )
 
-        parallel_end = position + sign * parallel_step * direction
+        # Explicit midpoint reduces the curvature bias of a tangent Euler step.
+        midpoint = position + 0.5 * sign * parallel_step * direction
+        midpoint_direction = _normalised_field(magnetic_field, midpoint, field_tolerance)
+        if midpoint_direction is None:
+            return ParticleWalkResult(
+                positions=np.asarray(positions),
+                termination=ParticleTermination.INVALID_FIELD,
+                iterations=iterations,
+            )
+        parallel_end = position + sign * parallel_step * midpoint_direction
         if hit := surface_intersector(position, parallel_end):
             return _hit_result(positions, hit, iterations)
 
