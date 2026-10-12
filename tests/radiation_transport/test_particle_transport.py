@@ -54,12 +54,8 @@ def test_same_seed_replays_the_exact_diffusive_trajectory():
         "max_steps": 5,
         "seed": 1234,
     }
-    first = walk_particle(
-        [1.0, 0.0, 0.0], _constant_z_field, _no_hit, **kwargs
-    )
-    second = walk_particle(
-        [1.0, 0.0, 0.0], _constant_z_field, _no_hit, **kwargs
-    )
+    first = walk_particle([1.0, 0.0, 0.0], _constant_z_field, _no_hit, **kwargs)
+    second = walk_particle([1.0, 0.0, 0.0], _constant_z_field, _no_hit, **kwargs)
 
     np.testing.assert_array_equal(first.positions, second.positions)
     assert first.termination is second.termination
