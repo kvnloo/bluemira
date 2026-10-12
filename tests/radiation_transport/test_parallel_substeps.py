@@ -151,3 +151,32 @@ def test_invalid_substep_count_is_rejected(invalid):
             parallel_step=1.0, diffusion_coefficient=0.0,
             max_steps=1, seed=1, parallel_substeps=invalid,
         )
+
+
+def test_substeps_find_wall_before_magnetic_field_becomes_undefined():
+    def field(position):
+        if position[2] < 0.4:
+            return [0.0, 0.0, 1.0]
+        return [0.0, 0.0, 0.0]
+
+    def wall(a, b):
+        return axisymmetric_surface_hit(
+            a, b, [[0.0, 0.4], [2.0, 0.4]], component_ids=["wall"]
+        )
+
+    coarse = walk_particle(
+        [1.0, 0.0, 0.0], field, wall,
+        parallel_step=1.0, diffusion_coefficient=0.0,
+        max_steps=2, seed=6,
+    )
+    refined = walk_particle(
+        [1.0, 0.0, 0.0], field, wall,
+        parallel_step=1.0, diffusion_coefficient=0.0,
+        max_steps=2, seed=6, parallel_substeps=2,
+    )
+
+    # The full-step midpoint lies beyond the wall, where this field is invalid.
+    assert coarse.termination is ParticleTermination.INVALID_FIELD
+    assert refined.termination is ParticleTermination.SURFACE_HIT
+    assert refined.hit.component_id == "wall"
+    np.testing.assert_allclose(refined.hit.point, [1.0, 0.0, 0.4])
