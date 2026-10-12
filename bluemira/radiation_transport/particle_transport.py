@@ -99,12 +99,13 @@ def walk_particle(
     seed: int,
     forward: bool = True,
     field_tolerance: float = 1e-14,
+    parallel_substeps: int = 1,
 ) -> ParticleWalkResult:
     """
     Walk one particle along a magnetic field with perpendicular diffusion.
 
-    Each iteration advances by ``parallel_step`` along the local magnetic
-    field, then by ``sqrt(diffusion_coefficient * parallel_step)`` in a
+    Each iteration uses an explicit midpoint step of ``parallel_step`` along
+    the normalised local magnetic field, then by ``sqrt(diffusion_coefficient * parallel_step)`` in a
     uniformly sampled direction in the plane perpendicular to the field.
     Both finite segments are checked independently for the nearest surface hit.
 
@@ -128,6 +129,10 @@ def walk_particle(
         Whether to walk along ``+B`` rather than ``-B``.
     field_tolerance:
         Field magnitude at or below which the walk terminates as invalid.
+    parallel_substeps:
+        Number of midpoint updates and finite-segment intersection checks per
+        parallel step. Increasing this only refines the approximation; it does
+        not guarantee correct near-tangent collision attribution.
 
     Returns
     -------
@@ -141,6 +146,13 @@ def walk_particle(
 
     Notes
     -----
+    Substepping reduces each integration chord and checks the wall along every
+    segment. Even short chords are not the exact curved field line; near-wall
+    hits still require convergence tests or separate physical validation.
+    The returned positions include all successful substeps; iterations counts
+    completed or attempted full parallel steps. Diffusion is sampled once per
+    full parallel step, not once per substep.
+
     The random generator is local to this call. Identical inputs and seed
     therefore replay the same diffusive trajectory without consuming global
     random state.
@@ -156,28 +168,46 @@ def walk_particle(
         raise ValueError("max_steps must be at least 1")
     if field_tolerance < 0.0:
         raise ValueError("field_tolerance must be non-negative")
+    if (
+        isinstance(parallel_substeps, bool)
+        or not isinstance(parallel_substeps, (int, np.integer))
+        or parallel_substeps < 1
+    ):
+        raise ValueError("parallel_substeps must be a positive integer")
 
     rng = np.random.default_rng(seed)
     positions = [position.copy()]
     sign = 1.0 if forward else -1.0
     diffusion_step = np.sqrt(diffusion_coefficient * parallel_step)
 
+    substep_length = parallel_step / parallel_substeps
     for step_index in range(max_steps):
-        direction = _normalised_field(magnetic_field, position, field_tolerance)
         iterations = step_index + 1
-        if direction is None:
-            return ParticleWalkResult(
-                positions=np.asarray(positions),
-                termination=ParticleTermination.INVALID_FIELD,
-                iterations=iterations,
+        for _ in range(parallel_substeps):
+            direction = _normalised_field(magnetic_field, position, field_tolerance)
+            if direction is None:
+                return ParticleWalkResult(
+                    positions=np.asarray(positions),
+                    termination=ParticleTermination.INVALID_FIELD,
+                    iterations=iterations,
+                )
+
+            midpoint = position + 0.5 * sign * substep_length * direction
+            midpoint_direction = _normalised_field(
+                magnetic_field, midpoint, field_tolerance
             )
+            if midpoint_direction is None:
+                return ParticleWalkResult(
+                    positions=np.asarray(positions),
+                    termination=ParticleTermination.INVALID_FIELD,
+                    iterations=iterations,
+                )
+            parallel_end = position + sign * substep_length * midpoint_direction
+            if hit := surface_intersector(position, parallel_end):
+                return _hit_result(positions, hit, iterations)
 
-        parallel_end = position + sign * parallel_step * direction
-        if hit := surface_intersector(position, parallel_end):
-            return _hit_result(positions, hit, iterations)
-
-        positions.append(parallel_end.copy())
-        position = parallel_end
+            positions.append(parallel_end.copy())
+            position = parallel_end
 
         if diffusion_step <= 0.0:
             continue
