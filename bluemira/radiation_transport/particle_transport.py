@@ -15,7 +15,6 @@ import numpy.typing as npt
 
 from bluemira.radiation_transport.surface_hits import SurfaceHit
 
-
 _XYZ_DIMENSIONS = 3
 _XYZ_VECTOR_SHAPE = (_XYZ_DIMENSIONS,)
 _AXIS_ALIGNMENT_LIMIT = 0.9
@@ -180,12 +179,10 @@ def walk_particle(
         positions.append(parallel_end.copy())
         position = parallel_end
 
-        if diffusion_step == 0.0:
+        if diffusion_step <= 0.0:
             continue
 
-        diffusion_normal = _normalised_field(
-            magnetic_field, position, field_tolerance
-        )
+        diffusion_normal = _normalised_field(magnetic_field, position, field_tolerance)
         if diffusion_normal is None:
             return ParticleWalkResult(
                 positions=np.asarray(positions),
