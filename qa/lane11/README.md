@@ -7,7 +7,21 @@
 **QA classification: LIMITED / LOCAL_ONLY. This is a fork-only recovery branch.**
 This is **not** a production patch, completed CAD→H5M→OpenMC validation, or origin promotion.
 
-The original ChatGPT Lane 11 conversation retains all 22 ZIP packages. Exact ZIP SHA-256 digests and sizes are in `WAVE_ARCHIVES.sha256`; the original ZIP bytes are **not** included merely by listing them. Do not treat a manifest row as successful source publication. Local Wave 22 was independently rerun on October 15, 2026 (Python 3.13.5): `61 passed in 17.55s` using `pytest -q` on seven included test modules; native DAGMC/MOAB and OpenMC were not run.
+All **22/22 original ZIP archives** are now included as bytes in [the lossless compressed tar bundle](archive/lane11_waves01-22_original_archives.tar.xz). The bundle's SHA-256 is `0c1bf83aae510ac5456a0fb0ee1c09b277ce9e695e5ad29e6ce3d961b35e610d`; its Git blob SHA-1 `458794d1eff1a39bb5a9152368bf20f3c544bd9e` matches the independently assembled local file. Their individual SHA-256 digests and sizes are in `WAVE_ARCHIVES.sha256`.
+
+To verify and extract locally:
+
+```sh
+python qa/lane11/verify_recovery.py qa/lane11/archive/lane11_waves01-22_original_archives.tar.xz qa/lane11/WAVE_ARCHIVES.sha256
+mkdir -p /tmp/lane11-original-waves
+tar -xJf qa/lane11/archive/lane11_waves01-22_original_archives.tar.xz -C /tmp/lane11-original-waves
+unzip /tmp/lane11-original-waves/lane11_wave22_material_group_identity.zip -d /tmp/lane11-wave22
+cd /tmp/lane11-wave22/lane11_wave22/source
+python -m pytest -q test_wave22_material_group_category.py test_wave21_assignment_coverage.py test_wave20_raw_material_groups.py test_volume_material_crosswalk_wave19.py test_native_h5m_probe.py test_native_watertight_counts_wave18.py test_h5m_material_handoff.py
+```
+
+**Independently rerun on October 15, 2026:** archive integrity 22/22 ZIP SHA-256 + CRC PASS; local Wave 22 tests `61 passed in 17.55s` (Python 3.13.5). Native DAGMC/MOAB and OpenMC were not run. These are retrieved experimental artifacts, not source code integrated into Bluemira.
+
 
 ## Workstream provenance
 1. Waves 1–3: analytic toroidal-chord/STEP geometry and tessellation fixtures.
