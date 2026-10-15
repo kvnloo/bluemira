@@ -1,0 +1,56 @@
+--- a/h5m_raw_group_audit.py
++++ b/h5m_raw_group_audit.py
+@@ -79,19 +79,33 @@
+                 gid for gid, count in volume_gids.items() if count > 1
+             )
+             memberships: dict[int, list[tuple[int, str]]] = defaultdict(list)
++            invalid_material_groups: dict[str, str] = {}
+             previous_end = -1
+             for i, row in enumerate(sets):
+                 handle = start_id + i
+                 end = int(row[0])
+                 if end < previous_end or end >= len(contents):
+                     raise ValueError("invalid MOAB contents offset")
+-                if end == previous_end:
+-                    previous_end = end
+-                    continue
+                 name = names.get(handle, "")
+                 if not isinstance(name, str) or not name.startswith("mat:"):
+                     previous_end = end
+                     continue
++                # A NAME tag alone does not establish a DAGMC material group.
++                # These are classification/metadata checks, not proof of MOAB
++                # geometry validity. Retain UNKNOWN for unusual layouts.
++                category = categories.get(handle)
++                if category != "Group":
++                    label = "CATEGORY missing" if category is None or category == "" else f"CATEGORY={category}"
++                    invalid_material_groups[str(handle)] = f"{label}, expected Group"
++                    previous_end = end
++                    continue
++                if not name[4:]:
++                    invalid_material_groups[str(handle)] = "empty mat: NAME"
++                    previous_end = end
++                    continue
++                if end == previous_end:
++                    previous_end = end
++                    continue
+                 selected = contents[previous_end + 1:end + 1]
+                 if int(row[3]) & 0x8:  # MOAB RANGE_COMPRESSED_FLAG
+                     if len(selected) % 2:
+@@ -115,6 +129,8 @@
+             unassigned = sorted(set(volume_gids) - set(memberships))
+             if duplicate_volume_global_ids:
+                 status, reason = "UNKNOWN", "duplicate positive GLOBAL_ID across volume sets"
++            elif invalid_material_groups:
++                status, reason = "UNKNOWN", "material NAME is not a valid Group classification"
+             elif ambiguous:
+                 status, reason = "UNKNOWN", "volume belongs to multiple material groups"
+             elif unassigned:
+@@ -123,6 +139,7 @@
+                 status, reason = "PASS", "all positive-ID volumes have one raw material group (not MOAB verified)"
+             return {"status": status, "reason": reason,
+                     "multiply_tagged_volumes": ambiguous,
++                    "invalid_material_groups": invalid_material_groups,
+                     "unassigned_volume_ids": unassigned,
+                     "duplicate_volume_global_ids": duplicate_volume_global_ids,
+                     "assigned_volume_count": len(memberships),
