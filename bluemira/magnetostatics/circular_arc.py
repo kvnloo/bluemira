@@ -134,6 +134,11 @@ def bzc_integrand_full_p1(psi: float, r_pc: float, r_j: float, z_k: float) -> fl
         term_1 = -z_k * np.log(log_arg_1)
 
     log_arg_2 = -z_k + sqrt_term
+    if z_k > 0:
+        radial_offset = r_j - r_pc * cos_psi
+        radial_sq = radial_offset**2 + (r_pc * sin_psi) ** 2
+        if radial_sq > 0:
+            log_arg_2 = radial_sq / (sqrt_term + z_k)
     if log_arg_2 <= 0:
         log_arg_2 = LOG_EPS
     return term_1 - r_pc * cos_psi * np.log(log_arg_2)
