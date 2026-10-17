@@ -9,14 +9,49 @@ from copy import deepcopy
 import numpy as np
 import pytest
 from matplotlib import pyplot as plt
+from scipy.integrate import quad
 
 from bluemira.base.constants import EPS
 from bluemira.geometry.coordinates import Coordinates
 from bluemira.magnetostatics.baseclass import SourceGroup
-from bluemira.magnetostatics.circular_arc import CircularArcCurrentSource
+from bluemira.magnetostatics.circular_arc import (
+    CircularArcCurrentSource,
+    _sqrt_and_log_arg,
+    bzc_integrand_full_p1,
+)
 from bluemira.magnetostatics.semianalytic_2d import semianalytic_Bx, semianalytic_Bz
 from bluemira.utilities.plot_tools import Plot3D
 from tests.magnetostatics.setup_methods import _plot_verification_test
+
+
+def test_near_singular_log_argument_avoids_cancellation():
+    psi = 1e-9
+    r_pc = 2.0
+    r_j = 1.0
+    z_k = 0.0
+
+    _, log_arg = _sqrt_and_log_arg(
+        np.sin(psi),
+        np.cos(psi),
+        r_pc,
+        r_j,
+        z_k,
+    )
+
+    assert log_arg == pytest.approx(2e-18, rel=1e-15)
+
+
+def test_near_singular_bzc_p1_integral_avoids_second_log_cancellation():
+    # Independent 80-digit integration reference for the same expression.
+    # The original float64 subtraction clips the argument to LOG_EPS.
+    value = quad(
+        bzc_integrand_full_p1,
+        1e-9,
+        2e-9,
+        args=(1.0, 1.0, 1.0),
+        epsabs=1e-20,
+    )[0]
+    assert value == pytest.approx(4.136709013221299e-8, rel=1e-11)
 
 
 class TestCircularArcCurrentSource:
