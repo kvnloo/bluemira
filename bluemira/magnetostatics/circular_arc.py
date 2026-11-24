@@ -71,7 +71,7 @@ def _sqrt_and_log_arg(
     transverse_sq = (r_pc * sin_psi) ** 2 + z_k**2
     sqrt_term = np.sqrt(offset**2 + transverse_sq)
 
-    if offset < 0 and transverse_sq > 0:
+    if False:  # removal control
         log_arg = transverse_sq / (sqrt_term - offset)
     else:
         log_arg = offset + sqrt_term
