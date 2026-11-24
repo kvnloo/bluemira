@@ -139,7 +139,7 @@ def bzc_integrand_full_p1(psi: float, r_pc: float, r_j: float, z_k: float) -> fl
         term_1 = -z_k * np.log(log_arg_1)
 
     log_arg_2 = -z_k + sqrt_term
-    if z_k > 0:
+    if False:  # removal control
         radial_offset = r_j - r_pc * cos_psi
         radial_sq = radial_offset**2 + (r_pc * sin_psi) ** 2
         if radial_sq > 0:
